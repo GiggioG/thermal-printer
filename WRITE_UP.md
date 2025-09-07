@@ -51,7 +51,7 @@ such a complete understanding of the protocol.
 I also wrote a script ([dataToBin.py](reverse_engineering/dataToBin.py)) that
 reads the capture files into binary ones, so I could look at them in a hex
 editor. I didn't find anything that way either. The funny thing is that I only
-later realised that the hex editor I used, [ImHex](https://imhex.werwolv.net/)
+later realised that the hex editor I used - [ImHex](https://imhex.werwolv.net/),
 is also made by werwolv, the originial author of the cat printer article.
 
 ## 3. Beginnings of reverse engineering the app
@@ -84,10 +84,11 @@ For some reason before continuing to the `BitmapToData` function, I decided to
 focus on finding out which activityType the PrintPreviewActivity class had, and
 this lead to nothing, just half a day of my live wasted.
 
-While searching for that, I discovered the class `com.Utils.PrinterModel` and
-the util class for creating the `PrinterModel`s - `com.Utils.PrintModelUtils`.
-The former held every possible attribute for a printer and the latter creates a
-PrinterModel instance presumably for every model, supported by the app.
+While I was searching for that, I discovered the class `com.Utils.PrinterModel`
+and the util class for creating the `PrinterModel`s -
+`com.Utils.PrintModelUtils`. The former held every possible attribute for a
+printer and the latter creates a PrinterModel instance presumably for every
+model, supported by the app.
 
 In `PrinterModel` there was a big function that just assigns certain fields to
 its arguments, and it was called in `PrintModelUtils` for each model. The
@@ -285,11 +286,31 @@ is 384 pixels wide and has a bit depth of 1 bit per pixel (1bpp) ).
 
 My first obstacle was the crc8 checksums, which I had ignored until that point.
 I looked at the algorithm and the cheksum table in
-`com.lib.blueUtils.BluetoothOrder`. The algorithm seemed pretty simple, but I had one problem: One element was missing from my CHECKSUM_TABLE:
+`com.lib.blueUtils.BluetoothOrder`. The algorithm seemed pretty simple, but I
+had one problem: One element was missing from my CHECKSUM_TABLE. The decompiler
+had replaced some of the numbers with random constants from some of the
+libraries in the apk, but fortunately it had included them and I could hunt down
+the constants. I couldn't find only one value: `Deleted59`, as it had no class
+or corresponding import:
 ```java
-private static final byte[] CHECKSUM_TABLE = {0, 7, 14, 9, 28, 27, 18, 21, 56, 63, 54, 49, 36, 35, 42, 45, 112, 119, 126, 121, 108, 107, 98, 101, 72, 79, 70, 65, 84, 83, 90, 93, -32, -25, -18, -23, -4, -5, -14, -11, -40, -33, -42, -47, -60, -61, -54, -51, -112, -105, -98, -103, -116, -117, -126, -123, -88, -81, -90, -95, -76, -77, -70, -67, -57, -64, -55, -50, -37, -36, -43, -46, -1, -8, -15, -10, -29, -28, -19, -22, -73, -80, -71, -66, -85, -84, -91, -94, -113, -120, -127, -122, -109, -108, -99, -102, 39, 32, 41, 46, 59, 60, 53, 50, 31, 24, 17, 22, 3, 4, 13, 10, 87, 80, 89, 94, 75, 76, 69, 66, 111, 104, 97, 102, 115, 116, 125, 122, -119, -114, -121, -128, -107, -110, -101, -100, -79, -74, -65, -72, -83, -86, -93, -92, -7, -2, -9, -16, -27, -30, -21, -20, -63, -58, -49, -56, -35, -38, -45, -44, 105, 110, 103, 96, 117, 114, 123, 124, 81, 86, 95, 88, 77, 74, 67, 68, 25, 30, 23, 16, 5, 2, 11, 12, 33, 38, 47, 40, Deleted59, 58, 51, 52, 78, 73, 64, 71, 82, 85, 92, 91, 118, 113, 120, 127, 106, 109, 100, 99, 62, 57, 48, 55, 34, 37, 44, 43, 6, 1, 8, 15, 26, 29, 20, 19, -82, -87, -96, -89, -78, -75, -68, -69, -106, -111, -104, -97, -118, -115, -124, -125, -34, -39, -48, -41, -62, -59, -52, -53, -26, -31, -24, -17, -6, -3, -12, -13};
+private static final byte[] CHECKSUM_TABLE = {0, 7, 14, 9, 28, 27, 18, 21, 56,
+63, 54, 49, 36, 35, 42, 45, 112, 119, 126, 121, 108, 107, 98, 101, 72, 79, 70,
+65, 84, 83, 90, 93, -32, -25, -18, -23, -4, -5, -14, -11, -40, -33, -42, -47,
+-60, -61, -54, -51, -112, -105, -98, -103, -116, -117, -126, -123, -88, -81,
+-90, -95, -76, -77, -70, -67, -57, -64, -55, -50, -37, -36, -43, -46, -1, -8,
+-15, -10, -29, -28, -19, -22, -73, -80, -71, -66, -85, -84, -91, -94, -113,
+-120, -127, -122, -109, -108, -99, -102, 39, 32, 41, 46, 59, 60, 53, 50, 31, 24,
+17, 22, 3, 4, 13, 10, 87, 80, 89, 94, 75, 76, 69, 66, 111, 104, 97, 102, 115,
+116, 125, 122, -119, -114, -121, -128, -107, -110, -101, -100, -79, -74, -65,
+-72, -83, -86, -93, -92, -7, -2, -9, -16, -27, -30, -21, -20, -63, -58, -49,
+-56, -35, -38, -45, -44, 105, 110, 103, 96, 117, 114, 123, 124, 81, 86, 95, 88,
+77, 74, 67, 68, 25, 30, 23, 16, 5, 2, 11, 12, 33, 38, 47, 40, Deleted59, 58, 51,
+52, 78, 73, 64, 71, 82, 85, 92, 91, 118, 113, 120, 127, 106, 109, 100, 99, 62,
+57, 48, 55, 34, 37, 44, 43, 6, 1, 8, 15, 26, 29, 20, 19, -82, -87, -96, -89,
+-78, -75, -68, -69, -106, -111, -104, -97, -118, -115, -124, -125, -34, -39,
+-48, -41, -62, -59, -52, -53, -26, -31, -24, -17, -6, -3, -12, -13};
 ```
-Luckily, it was only one and since I noticed each value from 0 to 255 appeared
+Luckily, it was only one and since each value from 0 to 255 appeared
 exactly once, it meant that if I `xor`-ed all of the other values together I
 would arrive at the correct value. Later I compared the missing number with the
 one in the corresponding position in werwolv's table and it matched.  
@@ -322,12 +343,13 @@ ends with 0b10000    -> currently charging
 ends with 0b10000000 -> currently printing
 ```
 I decided that the only statuses I accept are OK, Low battery and Charging.
-Otherwise, I refuse to send the commands. With that,
-[connection.py](src/connection.py) is done!
+Otherwise, I refuse to send the commands. After that I fumbled a bit with
+python's context manager api for my Connection class. In the end I implemented
+the correct methods and finished [connection.py](src/connection.py).
 
 ## 15. This was a fun project indeed
-In the end I could print an image from my computer, and even print text
-line-by-line with what is left as an example in main.py.
+In the end I could print an image from my computer, or even print text
+line-by-line. The code for printing a log is left as an example in main.py.
 
 [![Video of main.py](video_thumbnail.png)](video.mp4)
 
