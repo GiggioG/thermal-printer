@@ -1,5 +1,5 @@
 import asyncio
-from import datetime import datetime
+from datetime import datetime
 
 from commands import *
 from connection import Connection, FakeConnection;
