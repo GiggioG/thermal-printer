@@ -131,5 +131,5 @@ no nqmashe da imam compressiq, da znam za type-ove, za energy i t.n.
     i tuk i pri dvata `paper`-a se durji, sqkash X6 ne e isCanPrintLabel
 
 # todo
-- [X] writeup
-- [ ] grammar check writeup
+- [X] article
+- [ ] grammar check article

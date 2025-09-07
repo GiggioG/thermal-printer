@@ -6,7 +6,7 @@ app (TinyPrint) seemed weird.
 Recently I came across [WerWolv's
 blogpost](https://werwolv.net/blog/cat_printer) about reverse engineering his
 thermal printer's protocol and I was inspired to try with my own. Furthermore, I
-decided on attempting this with as little looking at their write up as possible.
+decided on attempting this with as little looking at their article rias possible.
 
 ## 1. Sniffing BLE traffic with ESP32
 At first I attempted to just look at the data directly. Using the `nRF Connect`
