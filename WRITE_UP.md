@@ -326,9 +326,67 @@ Otherwise, I refuse to send the commands. With that,
 [connection.py](src/connection.py) is done!
 
 ## 15. This was a fun project indeed
-In the end I could print an image from my computer, and even print text line-by-line with what is left as an example in main.py.
+In the end I could print an image from my computer, and even print text
+line-by-line with what is left as an example in main.py.
 
 [![Video of main.py](video_thumbnail.png)](video.mp4)
 
 ## Appendix 1: Vim commands for more readable java pseudo-bytecode
-TODO
+1. `:%s/\(.* \)\?r\(\d\+\) = \(.*\);$\n\t\(.* \)r\2 = \(.*\);$/\=("\t".submatch(4)."r".submatch(2)." = ".substitute(submatch(5),"r".submatch(2),"(".submatch(3).")","")."; \/\/ rule 1")/g`
+    ```java
+    r1 = 2+3+r7;
+    String r1 = someFunction(r1*2, "abc");
+    //----------------
+    String r1 = someFunction((2+3+r7)*2, "abc"); // rule 1
+    ```
+2. `:%s/\(.* \)\?r\(\d\+\) = \(.*\);$\n\tr\2 = \(.*\);$/\=("\t".submatch(1)."r".submatch(2)." = ".substitute(submatch(4),"r".submatch(2),"(".submatch(3).")","")."; \/\/ rule 2")/g`
+    ```java
+    r1 = 2+3+r7;
+    r1 = r1*2;
+    //----------------
+    r1 = (2+3+r7)*2; // rule 2
+    ```
+3. `:%s/int r\(\d\+\) = r\1 \([+-]\) \(.\+\);/r\1 \2= \3; \/\/ rule 3/g`
+    ```java
+    int r1 = r1 - 120*3;
+    //----------------
+    r1 -= 120*3; // rule 3
+    ```
+4. `:v/r\(\d\+\) = \(\-\?\d\+\);\n.*r\1 \?=.*/ s/r\(\d\+\) = \(\-\?\d\+\);$\n\t\(.*[ (]\)r\1\(.*\)/r\1 = \2;^M\t\3\2\4 \/\/ rule 4/g`
+    ```java
+    r4 = -80;
+    r5 = r4;
+    //----------------
+    r4 = -80;
+    r5 = -80; // rule 4
+    ```
+5. `:%s/boolean r\(\d\+\) = \(.*\);\n\tif (r\1\(.*\)$/if ((r\1 = \2\)\3 \/\/ rule 5/g`
+    ```java
+    boolean r17 = getABooleanFunction(r4, r28);
+    if(r17 || r9) goto L_0x5555;
+    //----------------
+    if((r17 = getABooleanFunction(r4, r28)) || r9) goto L_0x5555; // rule 5
+    ```
+6. `:%s/if (\(.*\)) goto \(L_0x....\);\n\tif (\(.*\)) goto \2;/if ((\1) || (\3)) goto \2; \/\/ rule 6/g`  
+    ```java
+    if (r4) goto L_0x6666;
+    if (r5) goto L_0x6666;
+    //----------------
+    if((r4) || (r5)) goto L_0x6666;
+    ```
+Broken, but still cool:
+- `:%s/if \(.*\) goto \(L_0x....\);$\n\(^\t.*$\n\)\+\tgoto \(L_0x....\);\n\2:$\n\(^\t.*$\n\)\+\4:/if \1 { \/\/ rule 7^M\5\t} else {^M\3\t}/g`
+    ```java
+    if (r4) goto L_0x1111;
+    System.out.println("false");
+    goto L_0x2222;
+    L_0x1111:
+    System.out.println("true");
+    L_0x2222:
+    //----------------
+    if (r4) { // rule 7
+    System.out.println("true");
+    } else {
+    System.out.println("false");
+    }
+    ```
