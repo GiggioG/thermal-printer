@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 
 from commands import *
-from connection import Connection, FakeConnection;
+from connection import Connection;
 from textToImage import textToImage;
 
 def getDate():
@@ -26,8 +26,10 @@ async def finishLog(conn):
 async def main():
     async with Connection("AA:BB:CC:DD:EE:FF") as conn:
         await beginLog(conn)
+        await asyncio.sleep(2)
         for i in range(3):
             await printToLog(conn, f"Message in log #{i+1}")
+            await asyncio.sleep(2)
         await finishLog(conn)
 
 loop = asyncio.get_event_loop()

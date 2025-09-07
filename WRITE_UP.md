@@ -148,7 +148,7 @@ one was `x6` and one was `x6_n`. I mentally noted that fact and coppied the x6
 function call above the DataBean function in a seperate file. Then I created
 this **legendary** vim macro:
 ```
-0f(l"ddt,xxj0f(ldw"edt,xxjvi{:s/^Re;/^Rd;^M?{k0
+0f(l"ddt,xxj0f(ldw"edt,xxjvi{:s/^Re;/^Rd; \/\/ FROM FUNCTION^M?{k0
 ```
 It takes each argument and replaces it, so I had a file with all the model's
 characteristics. (See [x6_n.java](reverse_engineering/x6_n.java))
@@ -175,7 +175,8 @@ I slowly discovered several packet types:
     - `0x02` for Tattoo (which I ignored since my printer doesn't support it)
     - `0x03` for Label
 - feedPaper: `0x51 78 BD 00 01 00 <amount> <crc> FF`
-- paper: `0x51 78 A1 00 02 00 <amount_low> <amount-high> <crc> FF` - this one actually feeds the paper
+- paper: `0x51 78 A1 00 02 00 <amount_low> <amount-high> <crc> FF` - this one
+actually feeds the paper
 
 Back in `BitmapToData()` I discovered:
 - blackening(quality): `0x51 78 A4 00 01 00 <quality> <crc> FF`, which is always
@@ -215,7 +216,8 @@ With that I finally concluded this dreaded function.
 1. Blackening: `0x51 78 A4 00 01 00 33 99 FF` - constant 51 (3/5) for my printer
 2. EnerAgy: `0x51 78 AF 00 02 00 <energy_low> <energy_high> <crc> FF` - energy,
 whatever that meant. This is sent only if the print type isn't `Text`.
-3. PrintType: `0x51 78 BE 00 01 00 <00 | 01 | 03> <crc> FF` - Image, Text or Label
+3. PrintType: `0x51 78 BE 00 01 00 <00 | 01 | 03> <crc> FF` - Image, Text or
+Label
 4. FeedPaper(speed): `0x51 78 BD 00 01 00 <speed> <crc> FF` - Speed is taken
 from the model's characteristics and depends on the print type. For my printer
 textSpeed is `10` and imageSpeed is `30`.
@@ -246,7 +248,87 @@ image)
 - Actually connect and send info
 
 ## 11. How the energy is determined
-TODO
+From the sniffed commands I knew that the energy of the printer when Print Depth
+is set to 7 (the max) = 10875. In the code I discovered the following formula
+for energy:  
+`energy = (concentration - Code.DEFCONCENTRATION)*0.15*d + d`  
+where Code.DEFCONCENTRATION = 4 and d = model.moderationEneragy. I assumed that
+`concentration` is the print depth, since the `Code.DEFCONCENTRATION` = 4, which
+is in the middle of 1 and 7, the bounds of the print depth. With this I had the
+following equation: `10875 = (7 - 4)*0.15*d + d`, which when solved results in
+`d`=`7500`. But in the model's characteristics moderationEneragy = 8000.
 
+This is when I remembered that little note about `x6` and `x6_n` and yep...
+`x6_n`'s moderationEneragy = 7500. So from this moment on I knew that my printer
+was in fact a `x6_n` and updated [x6_n.java](reverse_engineering/x6_n.java)
+accordingly.
+
+In the end we have a final formula for the energy:  
+`energy = (printDepth - 4)*0.15*7500 + 7500` =>  
+`energy = (printDepth - 4)*1125 + 7500`
+
+## 12. Print type and speed?
+When I print an image in the app, the print type is Image or Text (depending on
+selection), the speed varies accordingly (10 for text and 30 for Image), and
+energy is only attached when type isn't Text.
+
+When printing a label, it behaves exactly like Image: speed=30, energy is sent,
+just printType = `0x03`. 
+
+When printing a document, the printType could be Image or Text depending on
+selection, but in both cases speed is set to 10 and energy is not sent.
+
+## 13. Recreating the protocol in a script
+After that I started trying to implement a script to generate commands for an
+image file. (I don't bother with resizing or dithering, I expect an image which
+is 384 pixels wide and has a bit depth of 1 bit per pixel (1bpp) ). 
+
+My first obstacle was the crc8 checksums, which I had ignored until that point.
+I looked at the algorithm and the cheksum table in
+`com.lib.blueUtils.BluetoothOrder`. The algorithm seemed pretty simple, but I had one problem: One element was missing from my CHECKSUM_TABLE:
+```java
+private static final byte[] CHECKSUM_TABLE = {0, 7, 14, 9, 28, 27, 18, 21, 56, 63, 54, 49, 36, 35, 42, 45, 112, 119, 126, 121, 108, 107, 98, 101, 72, 79, 70, 65, 84, 83, 90, 93, -32, -25, -18, -23, -4, -5, -14, -11, -40, -33, -42, -47, -60, -61, -54, -51, -112, -105, -98, -103, -116, -117, -126, -123, -88, -81, -90, -95, -76, -77, -70, -67, -57, -64, -55, -50, -37, -36, -43, -46, -1, -8, -15, -10, -29, -28, -19, -22, -73, -80, -71, -66, -85, -84, -91, -94, -113, -120, -127, -122, -109, -108, -99, -102, 39, 32, 41, 46, 59, 60, 53, 50, 31, 24, 17, 22, 3, 4, 13, 10, 87, 80, 89, 94, 75, 76, 69, 66, 111, 104, 97, 102, 115, 116, 125, 122, -119, -114, -121, -128, -107, -110, -101, -100, -79, -74, -65, -72, -83, -86, -93, -92, -7, -2, -9, -16, -27, -30, -21, -20, -63, -58, -49, -56, -35, -38, -45, -44, 105, 110, 103, 96, 117, 114, 123, 124, 81, 86, 95, 88, 77, 74, 67, 68, 25, 30, 23, 16, 5, 2, 11, 12, 33, 38, 47, 40, Deleted59, 58, 51, 52, 78, 73, 64, 71, 82, 85, 92, 91, 118, 113, 120, 127, 106, 109, 100, 99, 62, 57, 48, 55, 34, 37, 44, 43, 6, 1, 8, 15, 26, 29, 20, 19, -82, -87, -96, -89, -78, -75, -68, -69, -106, -111, -104, -97, -118, -115, -124, -125, -34, -39, -48, -41, -62, -59, -52, -53, -26, -31, -24, -17, -6, -3, -12, -13};
+```
+Luckily, it was only one and since I noticed each value from 0 to 255 appeared
+exactly once, it meant that if I `xor`-ed all of the other values together I
+would arrive at the correct value. Later I compared the missing number with the
+one in the corresponding position in werwolv's table and it matched.  
+**Thank God for bitwise tricks!**
+
+After a little more coding I had written [commands.py](src/commands.py). Now I
+could successfully input an image, have it generate commands and then decode
+those commands back into the original image. Or the opposite, commands to image
+to commands.
+
+## 14. Talking to the printer
+After copy-pasting a bit of code from some tutorials and examples with the
+library Bleak, I could send things to the printer. I decided on asking it for
+its status beforehand (0x`51 78 A3 00 01 00 00 00 FF`). Until now I hadn't
+looked into what the printer sends back, but after a little searching and code
+following I got to `BluetoothOrder.java`'s `getDevState()` function. The
+response packet contains 3 bytes of data: the first one is the device status. I
+am not sure on the second and third ones, but I think they are labelNum and
+battery level, whatever that means.
+
+The logic for determining the printer's status is the following, depending on
+the status byte:
+```
+equal to 0b00000000  -> OK
+ends with 0b1        -> out of paper
+ends with 0b10       -> compartment open
+ends with 0b100      -> overheated
+ends with 0b1000     -> low battery
+ends with 0b10000    -> currently charging
+ends with 0b10000000 -> currently printing
+```
+I decided that the only statuses I accept are OK, Low battery and Charging.
+Otherwise, I refuse to send the commands. With that,
+[connection.py](src/connection.py) is done!
+
+## 15. This was a fun project indeed
+In the end I could print an image from my computer, and even print text line-by-line with what is left as an example in main.py.
+
+[![Video of main.py](video_thumbnail.png)](video.mp4)
 
 ## Appendix 1: Vim commands for more readable java pseudo-bytecode
+TODO
